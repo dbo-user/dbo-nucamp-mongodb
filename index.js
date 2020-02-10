@@ -1,13 +1,11 @@
 const MongoClient = require('mongodb').MongoClient;
-const assert = require('assert').strict;
+
 const dboper = require('./operations');
 
 const url = 'mongodb://localhost:27017/';
 const dbname = 'nucampsite';
 
-MongoClient.connect(url, { useUnifiedTopology: true }, (err, client) => {
-
-    assert.strictEqual(err, null);
+MongoClient.connect(url, { useUnifiedTopology: true }).then(client => {
 
     console.log('YAHOO! Connected correctly to server');
     console.log('--------------------------------------------------');
@@ -15,36 +13,44 @@ MongoClient.connect(url, { useUnifiedTopology: true }, (err, client) => {
     const db = client.db(dbname);
     console.log('** Database:',db.namespace);
 
-    db.dropCollection('campsites', (err, result) => {
+    db.dropCollection('campsites')
+    .then(result => {
         console.log('** Dropped Collection, result is', result);
+        return dboper.insertDocument(db, { name: "Breadcrumb Trail Campground", description: "Test"},
+        'campsites')
+     })
 
-        //const collection = db.collection('campsites');
+    .then(result => {
+        console.log('** Insert Document success:', result.ops);
+        return dboper.findDocuments(db, 'campsites');
+     })
 
-        dboper.insertDocument(db, { name: "Breadcrumb Trail Campground", description: "Test"},
-        'campsites', result => {
-            console.log('** Insert Document:', result.ops);
+    .then(docs => {
+        console.log('** Found Documents success:', docs);
+        return dboper.updateDocument(db, { name: "Breadcrumb Trail Campground" },
+            { description: "Updated Test Description" }, 'campsites');
+    })
 
-            dboper.findDocuments(db, 'campsites', docs => {
-                console.log('** Found Documents:', docs);
+    .then(result => {
+        console.log('** Updated Document Count:', result.result.nModified);
+        return dboper.findDocuments(db, 'campsites');
+    })
 
-                dboper.updateDocument(db, { name: "Breadcrumb Trail Campground" },
-                    { description: "Updated Test Description" }, 'campsites',
-                    result => {
-                        console.log('** Updated Document Count:', result.result.nModified);
+    .then(docs => {
+        console.log('** Found  Documents success:', docs);                   
+        return dboper.removeDocument(db, { name: "Breadcrumb Trail Campground" },
+            'campsites');
+    })
 
-                        dboper.findDocuments(db, 'campsites', docs => {
-                            console.log('** Found  Documents:', docs);
-                            
-                            dboper.removeDocument(db, { name: "Breadcrumb Trail Campground" },
-                                'campsites', result => {
-                                console.log('** Deleted Document Count:', result.deletedCount);
+    .then(result => {
+        console.log('** Deleted Document Count:', result.deletedCount);
+        return client.close();
+    })
 
-                                client.close();
-                            });
-                        });
-                    }
-                );
-            });
-        });
+    .catch(err => {
+        console.log('YOU HAVE AN ERROR',err); // handles errors from the chain
+        client.close();
     });
-});
+})
+.catch(err => console.log('YOU HAVE A CONNECTION ERROR',err)); // database connection failed on line 8                      
+
